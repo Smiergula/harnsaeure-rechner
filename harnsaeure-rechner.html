@@ -543,9 +543,22 @@
     color: #b01818;
   }
 
+  /* Neutral: Wert unbekannt → keine Ampel-Bewertung für den Beispielwert */
+  #harnsaeure-rechner .hr-zone--neutral {
+    background: #ececec;
+    color: #4a4a4a;
+  }
+
   #harnsaeure-rechner .hr-legende {
     margin-top: 0.5rem;
     font-size: 0.78rem;
+    color: var(--hr-grau);
+  }
+
+  /* Erklärung zum Beispielwert – bleibt auch auf dem Handy sichtbar */
+  #harnsaeure-rechner .hr-basis {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
     color: var(--hr-grau);
   }
 
@@ -697,6 +710,25 @@
     }
   }
 
+  /* ---------- Handy quer (wenig Höhe): nur kompakte Ergebnis-Leiste statt Tacho ---------- */
+  @media (max-width: 759px) and (max-height: 500px) {
+    #harnsaeure-rechner .hr-tacho {
+      display: none;
+    }
+
+    #harnsaeure-rechner .hr-ergebnis {
+      padding: 0.4rem 0.75rem 0.5rem;
+    }
+
+    #harnsaeure-rechner .hr-zahl {
+      font-size: 1.4rem;
+    }
+
+    #harnsaeure-rechner .hr-zone {
+      margin-top: 0.2rem;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     #harnsaeure-rechner .hr-zeiger {
       transition: none;
@@ -754,7 +786,7 @@
       <div class="hr-ergebnis" aria-live="polite">
         <svg class="hr-tacho" id="hr-tacho" viewBox="0 0 240 140" role="img" aria-labelledby="hr-zahl"></svg>
         <p class="hr-zahl" id="hr-zahl"></p>
-        <p id="hr-basis" class="hr-legende" hidden></p>
+        <p id="hr-basis" class="hr-basis" hidden></p>
         <span class="hr-zone" id="hr-zone"></span>
         <p class="hr-legende"><span class="hr-legende-strich"></span>Ausgangswert · Zeiger = neuer Wert</p>
       </div>
@@ -778,7 +810,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
     </svg>
-    <p><strong>Keine medizinische Beratung.</strong> Der Rechner liefert nur eine grobe Schätzung auf Basis statistischer Durchschnittswerte aus Studien. Dein tatsächlicher Wert kann deutlich abweichen. Bitte sprich Änderungen Deiner Ernährung oder Medikamente immer mit Deiner Ärztin oder Deinem Arzt ab. Deine Eingaben bleiben in Deinem Browser und werden nicht übertragen.</p>
+    <!-- Kurzfassung in Schritt 1 und 2, ausführlicher Text beim Ergebnis (Schritt 3) -->
+    <p data-hr-disclaimer="kurz"><strong>Keine medizinische Beratung</strong> – nur eine grobe Schätzung. Deine Eingaben bleiben in Deinem Browser und werden nicht übertragen.</p>
+    <p data-hr-disclaimer="lang" hidden><strong>Keine medizinische Beratung.</strong> Der Rechner liefert nur eine grobe Schätzung auf Basis statistischer Durchschnittswerte aus Studien. Dein tatsächlicher Wert kann deutlich abweichen. Bitte sprich Änderungen Deiner Ernährung oder Medikamente immer mit Deiner Ärztin oder Deinem Arzt ab. Deine Eingaben bleiben in Deinem Browser und werden nicht übertragen.</p>
   </div>
 
   <!-- Quellen (aufklappbar) -->
@@ -787,8 +821,8 @@
     <p id="hr-quellen-text"></p>
   </details>
 
-  <!-- Call to Action -->
-  <div class="hr-cta">
+  <!-- Call to Action (erst beim Ergebnis in Schritt 3 sichtbar) -->
+  <div class="hr-cta" id="hr-cta" hidden>
     <p id="hr-cta-text"></p>
     <a id="hr-cta-link" href="#"></a>
   </div>
@@ -815,7 +849,8 @@
     // Annahme: Wir rechnen mit diesem Beispielwert und stellen die Veränderung in den Vordergrund.
     unbekannt: {
       beispielwert: 7.0,
-      hinweis: "Kein Problem! Wir rechnen mit einem Beispielwert von 7,0 mg/dl. Entscheidend ist im Ergebnis die Veränderung, die Deine Ernährung bewirken kann."
+      hinweis: "Kein Problem! Wir rechnen mit einem Beispielwert von 7,0 mg/dl. Entscheidend ist im Ergebnis die Veränderung, die Deine Ernährung bewirken kann.",
+      zoneText: "Beispielrechnung – ohne Bewertung" // statt Ampeltext
     },
 
     // [OFFEN – Grenzen bestätigen] Ampel für den Tacho
@@ -1231,10 +1266,12 @@
     for (var w = H.min; w <= H.max; w++) {
       var innen = tachoPunkt(w, TACHO.radius - TACHO.dicke / 2 - 2);
       var aussen = tachoPunkt(w, TACHO.radius - TACHO.dicke / 2 - 7);
-      var text = tachoPunkt(w, TACHO.radius - TACHO.dicke / 2 - 16);
-      var beschriftung = w === H.min ? "≤" + w : w === H.max ? "≥" + w : String(w);
+      var text = tachoPunkt(w, TACHO.radius - TACHO.dicke / 2 - 19);
       svg += '<line x1="' + innen.x + '" y1="' + innen.y + '" x2="' + aussen.x + '" y2="' + aussen.y + '" stroke="#6b6b6b" stroke-width="1.5"/>';
-      svg += '<text x="' + text.x + '" y="' + (text.y + 3) + '" font-size="9" fill="#6b6b6b" text-anchor="middle" font-family="inherit">' + beschriftung + "</text>";
+      // Zahlen nur an jedem zweiten Strich (4, 6, 8 …) – dafür größer und auf dem Handy lesbar
+      if ((w - H.min) % 2 !== 0) continue;
+      var beschriftung = w === H.min ? "≤" + w : w === H.max ? "≥" + w : String(w);
+      svg += '<text x="' + text.x + '" y="' + (text.y + 4) + '" font-size="12" font-weight="600" fill="#4a4a4a" text-anchor="middle" font-family="inherit">' + beschriftung + "</text>";
     }
 
     // Markierung für den Ausgangswert (grauer Strich über den Bogen)
@@ -1295,10 +1332,16 @@
       basis.hidden = true;
     }
 
-    var z = zone(neu);
     var zoneEl = $("#hr-zone");
-    zoneEl.className = "hr-zone hr-zone--" + z;
-    zoneEl.textContent = CONFIG.ampel.texte[z];
+    if (zustand.unbekannt) {
+      // Keine Ampel-Bewertung, denn der Beispielwert ist nicht der echte Wert
+      zoneEl.className = "hr-zone hr-zone--neutral";
+      zoneEl.textContent = CONFIG.unbekannt.zoneText;
+    } else {
+      var z = zone(neu);
+      zoneEl.className = "hr-zone hr-zone--" + z;
+      zoneEl.textContent = CONFIG.ampel.texte[z];
+    }
   }
 
   /* =====================================================================
@@ -1332,6 +1375,11 @@
       punkt.classList.toggle("hr-erledigt", n < nummer);
     });
     $("#hr-fortschritt-text").textContent = "Schritt " + nummer + " von 3";
+
+    // Ausführlicher Disclaimer und Beratungs-Button erst beim Ergebnis
+    $('[data-hr-disclaimer="kurz"]').hidden = nummer === 3;
+    $('[data-hr-disclaimer="lang"]').hidden = nummer !== 3;
+    $("#hr-cta").hidden = nummer !== 3;
 
     knopfZurueck.hidden = nummer === 1;
     knopfWeiter.hidden = nummer === 3;
